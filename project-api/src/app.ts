@@ -45,7 +45,7 @@ app.use(async (req, res, next) => {
     };
     const connection = await createConnection();
     const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM users WHERE email = ?",
+      "SELECT * FROM users WHERE id = ?",
       [payload.id]
     );
     const user = rows.length ? rows[0] : null;
@@ -145,12 +145,44 @@ app.post("/customers/register", async (req, res) => {
       createdAt,
     });
   } finally {
-    connection.end();
+    await connection.end();
   }
 });
 
-app.post("/partners/events", (req, res) => {
+app.post("/partners/events", async (req, res) => {
   const { name, description, date, location } = req.body;
+  const userId = req.user!.id;
+  const connection = await createConnection();
+  try {
+    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM partners WHERE user_id = ?",
+      [userId]
+    );
+    const partner = rows.length ? rows[0] : null;
+
+    if (!partner) {
+      res.status(403).json({ message: "Not authorized" });
+      return;
+    }
+    const eventDate = new Date(date);
+    const createdAt = new Date();
+
+    const [eventResult] = await connection.execute<mysql.ResultSetHeader>(
+      "INSERT INTO events (name, description, date, location, created_at, partner_id) VALUES (?, ?, ?, ?, ?, ?)",
+      [name, description, eventDate, location, createdAt, partner.id]
+    );
+    res.status(201).json({
+      id: eventResult.insertId,
+      name,
+      description,
+      date: eventDate,
+      location,
+      created_at: createdAt,
+      partner_id: partner.id,
+    });
+  } finally {
+    await connection.end();
+  }
 });
 
 app.get("/partners/events", (req, res) => {});
@@ -161,12 +193,37 @@ app.get("/partners/events/:eventId", (req, res) => {
   res.send();
 });
 
-app.get("/events", (req, res) => {});
+app.get("/events", async (req, res) => {
+  const connection = await createConnection();
+  try {
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM events"
+    );
+    res.json(eventRows);
+  } finally {
+    await connection.end();
+  }
+});
 
-app.get("/events/:eventId", (req, res) => {
+app.get("/events/:eventId", async (req, res) => {
   const { eventId } = req.params;
-  console.log(eventId);
-  res.send();
+  const connection = await createConnection();
+  try {
+    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
+      "SELECT * FROM events WHERE id = ?",
+      [eventId]
+    );
+    const event = eventRows.length ? eventRows[0] : null;
+
+    if (!event) {
+      res.status(404).json({ message: "Event not found" });
+      return;
+    }
+
+    res.json(event);
+  } finally {
+    await connection.end();
+  }
 });
 
 app.listen(3000, async () => {
