@@ -1,103 +1,71 @@
 import { Router } from "express";
-import { createConnection } from "../database";
-import * as mysql from "mysql2/promise";
-import bcrypt from "bcrypt";
+import { PartnerService } from "../services/partner-service";
+import { EventService } from "../services/event-service";
 
 export const partnerRoutes = Router();
 
+const partnerService = new PartnerService();
+const eventService = new EventService();
+
 partnerRoutes.post("/register", async (req, res) => {
   const { name, email, password, company_name } = req.body;
-
-  const connection = await createConnection();
-
-  try {
-    const createdAt = new Date();
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const [userResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
-      [name, email, hashedPassword, createdAt]
-    );
-    const userId = userResult.insertId;
-    const [partnerResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO partners (user_id, company_name, created_at) VALUES (?, ?, ?)",
-      [userId, company_name, createdAt]
-    );
-
-    res.status(201).json({
-      id: partnerResult.insertId,
-      name,
-      userId,
-      company_name,
-      createdAt,
-    });
-  } finally {
-    connection.end();
-  }
+  const result = await partnerService.register({
+    name,
+    email,
+    password,
+    company_name,
+  });
+  res.status(201).json(result);
 });
 
 partnerRoutes.post("/events", async (req, res) => {
   const { name, description, date, location } = req.body;
   const userId = req.user!.id;
-  const connection = await createConnection();
-  try {
-    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM partners WHERE user_id = ?",
-      [userId]
-    );
-    const partner = rows.length ? rows[0] : null;
+  const partner = await partnerService.findByUserId(userId);
 
-    if (!partner) {
-      res.status(403).json({ message: "Not authorized" });
-      return;
-    }
-    const eventDate = new Date(date);
-    const createdAt = new Date();
-
-    const [eventResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO events (name, description, date, location, created_at, partner_id) VALUES (?, ?, ?, ?, ?, ?)",
-      [name, description, eventDate, location, createdAt, partner.id]
-    );
-    res.status(201).json({
-      id: eventResult.insertId,
-      name,
-      description,
-      date: eventDate,
-      location,
-      created_at: createdAt,
-      partner_id: partner.id,
-    });
-  } finally {
-    await connection.end();
+  if (!partner) {
+    res.status(403).json({ message: "Not authorized" });
+    return;
   }
+
+  const result = await eventService.create({
+    name,
+    description,
+    date,
+    location,
+    partnerId: partner.id,
+  });
+  res.status(201).json(result);
 });
 
 partnerRoutes.get("/events", async (req, res) => {
   const userId = req.user!.id;
-  const connection = await createConnection();
-  try {
-    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM partners WHERE user_id = ?",
-      [userId]
-    );
-    const partner = rows.length ? rows[0] : null;
+  const partner = await partnerService.findByUserId(userId);
 
-    if (!partner) {
-      res.status(403).json({ message: "Not authorized" });
-      return;
-    }
-
-    const [eventRows] = await connection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM events WHERE partner_id = ?",
-      [partner.id]
-    );
-    res.json(eventRows);
-  } finally {
-    await connection.end();
+  if (!partner) {
+    res.status(403).json({ message: "Not authorized" });
+    return;
   }
+
+  const result = await eventService.findAll(partner.id);
+  res.status(201).json(result);
 });
 
-partnerRoutes.get("/events/:eventId", (req, res) => {
+partnerRoutes.get("/events/:eventId", async (req, res) => {
   const { eventId } = req.params;
-  console.log(eventId);
-  res.send();
+  const userId = req.user!.id;
+  const partner = await partnerService.findByUserId(userId);
+
+  if (!partner) {
+    res.status(403).json({ message: "Not authorized" });
+    return;
+  }
+
+  const event = await eventService.findById(+eventId);
+
+  if (!event || event.partner_id !== partner.id) {
+    res.status(404).json({ message: "Event not found" });
+  }
+
+  res.status(201).json(event);
 });
