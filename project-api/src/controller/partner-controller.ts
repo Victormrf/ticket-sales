@@ -4,11 +4,10 @@ import { EventService } from "../services/event-service";
 
 export const partnerRoutes = Router();
 
-const partnerService = new PartnerService();
-const eventService = new EventService();
-
 partnerRoutes.post("/register", async (req, res) => {
   const { name, email, password, company_name } = req.body;
+
+  const partnerService = new PartnerService();
   const result = await partnerService.register({
     name,
     email,
@@ -21,17 +20,18 @@ partnerRoutes.post("/register", async (req, res) => {
 partnerRoutes.post("/events", async (req, res) => {
   const { name, description, date, location } = req.body;
   const userId = req.user!.id;
+  const partnerService = new PartnerService();
   const partner = await partnerService.findByUserId(userId);
 
   if (!partner) {
     res.status(403).json({ message: "Not authorized" });
     return;
   }
-
+  const eventService = new EventService();
   const result = await eventService.create({
     name,
     description,
-    date,
+    date: new Date(date),
     location,
     partnerId: partner.id,
   });
@@ -40,13 +40,14 @@ partnerRoutes.post("/events", async (req, res) => {
 
 partnerRoutes.get("/events", async (req, res) => {
   const userId = req.user!.id;
+  const partnerService = new PartnerService();
   const partner = await partnerService.findByUserId(userId);
 
   if (!partner) {
     res.status(403).json({ message: "Not authorized" });
     return;
   }
-
+  const eventService = new EventService();
   const result = await eventService.findAll(partner.id);
   res.status(201).json(result);
 });
@@ -54,13 +55,14 @@ partnerRoutes.get("/events", async (req, res) => {
 partnerRoutes.get("/events/:eventId", async (req, res) => {
   const { eventId } = req.params;
   const userId = req.user!.id;
+  const partnerService = new PartnerService();
   const partner = await partnerService.findByUserId(userId);
 
   if (!partner) {
     res.status(403).json({ message: "Not authorized" });
     return;
   }
-
+  const eventService = new EventService();
   const event = await eventService.findById(+eventId);
 
   if (!event || event.partner_id !== partner.id) {

@@ -1,7 +1,6 @@
 import { Database } from "../database";
-import * as mysql from "mysql2/promise";
-import bcrypt from "bcrypt";
 import { UserModel } from "../models/user-model";
+import { CustomerModel } from "../models/customer-model";
 
 export class CustomerService {
   async register(
@@ -11,27 +10,32 @@ export class CustomerService {
     address: string,
     phone: string
   ) {
-    const connection = Database.getInstance();
-    const createdAt = new Date();
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const userModel = await UserModel.create({
-      name,
-      email,
-      password: hashedPassword,
-    });
-    const userId = userModel.id;
-    const [partnerResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO customers (user_id, address, phone, created_at) VALUES (?, ?, ?, ?)",
-      [userId, address, phone, createdAt]
-    );
+    const connection = await Database.getInstance().getConnection();
+    try {
+      await connection.beginTransaction();
+      const user = await UserModel.create({
+        name,
+        email,
+        password,
+      });
+      const customer = await CustomerModel.create({
+        user_id: user.id,
+        address,
+        phone,
+      });
+      await connection.commit();
 
-    return {
-      id: partnerResult.insertId,
-      name,
-      userId,
-      address,
-      phone,
-      createdAt,
-    };
+      return {
+        id: customer.id,
+        name,
+        user_id: user.id,
+        address,
+        phone,
+        created_at: customer.created_at,
+      };
+    } catch (e) {
+      await connection.rollback();
+      throw e;
+    }
   }
 }

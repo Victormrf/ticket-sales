@@ -91,9 +91,34 @@ Authorization: Bearer {{ tokenPartner1 }}
 GET http://localhost:3000/partners/events/1
 Authorization: Bearer {{ tokenPartner1 }}
 
+### Criação de tickets
+POST http://localhost:3000/events/1/tickets
+Content-Type: application/json
+Authorization: Bearer {{ tokenPartner1 }}
+
+{
+    "num_tickets": 10,
+    "price": 100
+}
+
+### (poderia trabalhar com paginação)
+GET http://localhost:3000/events/1/tickets
+
+###
+GET http://localhost:3000/events/1/tickets/1
 
 ### Listagem de eventos
 GET http://localhost:3000/events
 
 ### Listagem de um evento
 GET http://localhost:3000/events/1
+
+###
+POST http://localhost:3000/purchases
+Content-Type: application/json
+Authorization: Bearer {{ tokenCustomer1 }}
+
+{
+    "ticket_ids": [1],
+    "card_token": "tok_visa"
+}

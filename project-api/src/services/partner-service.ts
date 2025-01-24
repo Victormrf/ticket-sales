@@ -1,6 +1,6 @@
 import { Database } from "../database";
-import * as mysql from "mysql2/promise";
-import bcrypt from "bcrypt";
+import { UserModel } from "../models/user-model";
+import { PartnerModel } from "../models/partner-model";
 
 export class PartnerService {
   async register(data: {
@@ -10,37 +10,42 @@ export class PartnerService {
     company_name: string;
   }) {
     const { name, email, password, company_name } = data;
-
-    const connection = Database.getInstance();
-
-    const createdAt = new Date();
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const [userResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)",
-      [name, email, hashedPassword, createdAt]
-    );
-    const userId = userResult.insertId;
-    const [partnerResult] = await connection.execute<mysql.ResultSetHeader>(
-      "INSERT INTO partners (user_id, company_name, created_at) VALUES (?, ?, ?)",
-      [userId, company_name, createdAt]
-    );
-
-    return {
-      id: partnerResult.insertId,
-      name,
-      userId,
-      company_name,
-      createdAt,
-    };
+    const connection = await Database.getInstance().getConnection();
+    try {
+      await connection.beginTransaction();
+      const user = await UserModel.create(
+        {
+          name,
+          email,
+          password,
+        },
+        { connection }
+      );
+      const partner = await PartnerModel.create(
+        {
+          company_name,
+          user_id: user.id,
+        },
+        { connection }
+      );
+      await connection.commit();
+      return {
+        id: partner.id,
+        name,
+        user_id: user.id,
+        company_name,
+        created_at: partner.created_at,
+      };
+    } catch (e) {
+      await connection.rollback();
+      throw e;
+    } finally {
+      await connection.release();
+    }
   }
 
   async findByUserId(userId: number) {
-    const connection = Database.getInstance();
-    const [rows] = await connection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM partners WHERE user_id = ?",
-      [userId]
-    );
-    return rows.length ? rows[0] : null;
+    return PartnerModel.findByUserId(userId);
   }
 }
 
