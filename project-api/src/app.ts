@@ -7,6 +7,7 @@ import { customerRoutes } from "./controller/customer-controller";
 import { eventRoutes } from "./controller/events-controller";
 import { UserService } from "./services/user-service";
 import { ticketRoutes } from "./controller/ticket-controller";
+import { purchaseRoutes } from "./controller/purchase-controller";
 
 const app = express();
 
@@ -56,15 +57,25 @@ app.use("/partners", partnerRoutes);
 app.use("/customers", customerRoutes);
 app.use("/events", eventRoutes);
 app.use("/events", ticketRoutes);
+app.use("/purchases", purchaseRoutes);
 
 app.listen(3000, async () => {
   const connection = Database.getInstance();
   await connection.execute("SET FOREIGN_KEY_CHECKS = 0");
+  await connection.execute("TRUNCATE TABLE reservation_tickets");
+  await connection.execute("TRUNCATE TABLE purchase_tickets");
+  await connection.execute("TRUNCATE TABLE purchases");
   await connection.execute("TRUNCATE TABLE tickets");
   await connection.execute("TRUNCATE TABLE events");
   await connection.execute("TRUNCATE TABLE customers");
   await connection.execute("TRUNCATE TABLE partners");
   await connection.execute("TRUNCATE TABLE users");
   await connection.execute("SET FOREIGN_KEY_CHECKS = 1");
-  console.log("Server is running in http://localhost:3000");
+  console.log("Running in http://localhost:3000");
 });
+
+//MVC - Model View Controller (Arquitetura em camadas)
+
+//Application Service - o que eu quero expor como regras cruciais da aplicação
+//Domain Service - Criptografar senha
+//Active Record - Encapsular lógica de arma. e de negócio
